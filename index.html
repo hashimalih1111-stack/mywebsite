@@ -1,0 +1,224 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Space 3D Shooter — Hashim</title>
+  <style>
+    body { margin:0; overflow:hidden; background:#000; }
+    #info { position: absolute; top:8px; left:8px; color:#fff; font-family: sans-serif;}
+  </style>
+</head>
+<body>
+<div id="info">← → Move • Space = Shoot • Score: <span id="score">0</span></div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.min.js"></script>
+<script>
+/* Simple 3D Space Shooter (Three.js)
+   - Save as index.html and open in Chrome
+   - Uses built-in geometry (no external files) so it runs offline
+*/
+
+let scene, camera, renderer;
+let player, bullets = [], enemies = [], score=0;
+const scoreEl = document.getElementById('score');
+const WIDTH = window.innerWidth, HEIGHT = window.innerHeight;
+
+init();
+animate();
+
+function init(){
+  // scene + camera
+  scene = new THREE.Scene();
+
+  camera = new THREE.PerspectiveCamera(60, WIDTH/HEIGHT, 0.1, 2000);
+  camera.position.set(0, 50, 200);
+  camera.lookAt(0, 0, 0);
+
+  // renderer
+  renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(WIDTH, HEIGHT);
+  document.body.appendChild(renderer.domElement);
+
+  // lights
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+  hemi.position.set(0,200,0);
+  scene.add(hemi);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.6);
+  dir.position.set(-1, 2, 2);
+  scene.add(dir);
+
+  // star-field (particles)
+  const starsGeo = new THREE.BufferGeometry();
+  const starCount = 800;
+  const positions = new Float32Array(starCount * 3);
+  for (let i=0;i<starCount;i++){
+    positions[i*3] = (Math.random()-0.5)*2000;
+    positions[i*3+1] = (Math.random()-0.5)*2000;
+    positions[i*3+2] = -Math.random()*2000;
+  }
+  starsGeo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+  const starsMat = new THREE.PointsMaterial({ color:0x8888ff, size:1 });
+  const stars = new THREE.Points(starsGeo, starsMat);
+  scene.add(stars);
+
+  // player: combine shapes to look like a ship
+  const playerGroup = new THREE.Group();
+  const bodyGeo = new THREE.BoxGeometry(24,10,50);
+  const bodyMat = new THREE.MeshPhongMaterial({color:0x33aaff});
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.y = 0;
+  playerGroup.add(body);
+  const nose = new THREE.ConeGeometry(10, 30, 8);
+  const noseMat = new THREE.MeshPhongMaterial({color:0xffcc33});
+  const noseMesh = new THREE.Mesh(nose, noseMat);
+  noseMesh.rotation.x = Math.PI/2;
+  noseMesh.position.z = 35;
+  playerGroup.add(noseMesh);
+  playerGroup.position.set(0, -40, 0);
+  scene.add(playerGroup);
+  player = playerGroup;
+
+  // ground plane (invisible reference)
+  // create initial enemies
+  for(let i=0;i<6;i++) spawnEnemy();
+
+  // input
+  setControls();
+
+  // resize
+  window.addEventListener('resize', onWindowResize);
+}
+
+// controls + shooting
+let moveLeft=false, moveRight=false;
+function setControls(){
+  window.addEventListener('keydown', (e)=>{
+    if(e.code==='ArrowLeft') moveLeft=true;
+    if(e.code==='ArrowRight') moveRight=true;
+    if(e.code==='Space') shoot();
+  });
+  window.addEventListener('keyup', (e)=>{
+    if(e.code==='ArrowLeft') moveLeft=false;
+    if(e.code==='ArrowRight') moveRight=false;
+  });
+}
+
+// shooting
+function shoot(){
+  // limit fire rate
+  if(bullets.length > 8) return;
+  const g = new THREE.BoxGeometry(4,4,12);
+  const m = new THREE.MeshBasicMaterial({color:0xffff66});
+  const b = new THREE.Mesh(g,m);
+  b.position.copy(player.position);
+  b.position.y += 4;
+  b.position.z -= 30;
+  b.userData = { velocity: new THREE.Vector3(0,0,-20) }; // moves towards negative z
+  scene.add(b);
+  bullets.push(b);
+}
+
+// spawn enemy
+function spawnEnemy(){
+  const size = 18 + Math.random()*18;
+  const geo = new THREE.SphereGeometry(size, 12, 12);
+  const mat = new THREE.MeshPhongMaterial({color: 0xff4444});
+  const e = new THREE.Mesh(geo, mat);
+  e.position.x = (Math.random()-0.5)*300;
+  e.position.y = (Math.random()-0.5)*60 - 10;
+  e.position.z = -500 - Math.random()*800;
+  e.userData = { speed: 1.5 + Math.random()*3, size: size };
+  scene.add(e);
+  enemies.push(e);
+}
+
+// simple collision distance check
+function checkCollision(a, b, radius){
+  const dx = a.position.x - b.position.x;
+  const dy = a.position.y - b.position.y;
+  const dz = a.position.z - b.position.z;
+  const dist = Math.sqrt(dx*dx+dy*dy+dz*dz);
+  return dist < radius;
+}
+
+// animate loop
+function animate(){
+  requestAnimationFrame(animate);
+
+  // move player left/right with bounds
+  if(moveLeft) player.position.x -= 6;
+  if(moveRight) player.position.x += 6;
+  if(player.position.x < -380) player.position.x = -380;
+  if(player.position.x > 380) player.position.x = 380;
+
+  // move bullets
+  for(let i=bullets.length-1;i>=0;i--){
+    const b = bullets[i];
+    b.position.addScaledVector(b.userData.velocity, 0.6);
+    if(b.position.z < -2500){ scene.remove(b); bullets.splice(i,1); }
+  }
+
+  // move enemies forward
+  for(let i=enemies.length-1;i>=0;i--){
+    const e = enemies[i];
+    e.position.z += e.userData.speed;
+    // rotate little
+    e.rotation.y += 0.02*(i%3+1);
+    if(e.position.z > 200){
+      // enemy passed you: reset behind
+      e.position.z = -800 - Math.random()*600;
+      e.position.x = (Math.random()-0.5)*300;
+    }
+    // collision with bullets
+    for(let j=bullets.length-1;j>=0;j--){
+      if(checkCollision(e, bullets[j], e.userData.size + 4)){
+        // hit
+        scene.remove(bullets[j]); bullets.splice(j,1);
+        // respawn enemy
+        e.position.z = -800 - Math.random()*600;
+        e.position.x = (Math.random()-0.5)*300;
+        score += 10;
+        scoreEl.textContent = score;
+        // spawn small explosion (quick scale)
+        explosion(e.position.clone());
+      }
+    }
+    // collision with player
+    if(checkCollision(e, player, e.userData.size + 30)){
+      // game over simple
+      alert('Game Over! Score: ' + score);
+      location.reload();
+      return;
+    }
+  }
+
+  // occasionally spawn more enemies if few
+  if(enemies.length < 6 && Math.random() < 0.01) spawnEnemy();
+
+  renderer.render(scene, camera);
+}
+
+// small explosion effect (scaling sphere then remove)
+function explosion(pos){
+  const g = new THREE.SphereGeometry(8,12,12);
+  const m = new THREE.MeshBasicMaterial({color:0xffff88});
+  const s = new THREE.Mesh(g,m);
+  s.position.copy(pos);
+  scene.add(s);
+  let t=0;
+  const int = setInterval(()=>{
+    t++;
+    s.scale.setScalar(1 + t*0.3);
+    s.material.opacity = Math.max(0,1 - t*0.12);
+    s.material.transparent = true;
+    if(t>8){ clearInterval(int); scene.remove(s); }
+  },30);
+}
+
+function onWindowResize(){
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+</script>
+</body>
+</html>
