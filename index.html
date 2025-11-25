@@ -78,6 +78,11 @@ if (
 ) {
     gameOver = true;
 }
+// REMOVE ENEMY IF IT GOES OFF SCREEN (NO GAME OVER)
+if (e.y > canvas.height) {
+    enemies.splice(i, 1);
+    return;
+}
 }
 
 // ⭐ GAME OVER SCREEN
