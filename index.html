@@ -1,28 +1,50 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Simple Space Shooter</title>
+    <title>Advanced Space Shooter</title>
     <style>
         body { margin: 0; overflow: hidden; background: black; }
-        canvas { display: block; margin: auto; background: #000; }
+        canvas { display: block; margin: auto; background: black; }
     </style>
 </head>
-<body>
 
-<canvas id="gameCanvas" width="480" height="600"></canvas>
+<body>
+<canvas id="gameCanvas" width="500" height="600"></canvas>
 
 <script>
-// CANVAS SETUP
+// CANVAS
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+// IMAGES
+const playerImg = new Image();
+playerImg.src = "https://i.imgur.com/6X5VwPn.png";
+
+const enemyImg = new Image();
+enemyImg.src = "https://i.imgur.com/Cz3B1yC.png";
+
+const heartImg = new Image();
+heartImg.src = "https://i.imgur.com/4LGAZ8h.png";
+
+const explosionImg = new Image();
+explosionImg.src = "https://i.imgur.com/QfV8v8K.png";
+
+// SOUNDS
+let fireSound = new Audio("https://actions.google.com/sounds/v1/weapons/medium_laser_1.ogg");
+let explosionSound = new Audio("https://actions.google.com/sounds/v1/explosions/explosion_04.ogg");
+
+// GAME DATA
+let level = 1;
+let score = 0;
+let health = 3;
+
 // PLAYER
 let player = {
-    x: 220,
+    x: 230,
     y: 520,
-    width: 40,
-    height: 40,
-    speed: 5
+    width: 50,
+    height: 50,
+    speed: 6
 };
 
 // BULLETS
@@ -32,85 +54,142 @@ let bullets = [];
 let enemies = [];
 let enemySpeed = 2;
 
-// GAME STATE
-let gameOver = false;
-
-// 🔊 FIRE SOUND
-let fireSound = new Audio();
-fireSound.src = "https://actions.google.com/sounds/v1/weapons/medium_laser_1.ogg";
+// EXPLOSIONS
+let explosions = [];
 
 // CREATE ENEMY
 function createEnemy() {
     enemies.push({
-        x: Math.random() * 440,
-        y: -40,
-        width: 40,
-        height: 40
+        x: Math.random() * 450,
+        y: -50,
+        width: 50,
+        height: 50
     });
 }
-setInterval(createEnemy, 1000);
+setInterval(createEnemy, 900);
 
 // DRAW PLAYER
 function drawPlayer() {
-    ctx.fillStyle = "cyan";
-    ctx.fillRect(player.x, player.y, player.width, player.height);
+    ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
 }
 
 // DRAW BULLETS
 function drawBullets() {
     ctx.fillStyle = "yellow";
     bullets.forEach((b, i) => {
-        b.y -= 5;
+        b.y -= 6;
         ctx.fillRect(b.x, b.y, 5, 10);
-
-        if (b.y < 0) bullets.splice(i, 1);
+        if (b.y < -10) bullets.splice(i, 1);
     });
 }
 
 // DRAW ENEMIES
 function drawEnemies() {
-    // COLLISION WITH PLAYER → TRUE COLLISION CHECK
-if (
-    e.y + e.height > player.y &&           // Enemy bottom touches player top
-    e.y < player.y + player.height &&      // Enemy top is below player bottom
-    e.x < player.x + player.width &&       // Enemy left touches player right
-    e.x + e.width > player.x               // Enemy right touches player left
-) {
-    gameOver = true;
-}
-// REMOVE ENEMY IF IT GOES OFF SCREEN (NO GAME OVER)
-if (e.y > canvas.height) {
-    enemies.splice(i, 1);
-    return;
-}
+    enemies.forEach((e, i) => {
+        e.y += enemySpeed;
+        ctx.drawImage(enemyImg, e.x, e.y, e.width, e.height);
+
+        // Remove if below screen (no game over)
+        if (e.y > 600) {
+            enemies.splice(i, 1);
+            return;
+        }
+
+        // COLLISION WITH PLAYER → health –
+        if (
+            e.y + e.height > player.y &&
+            e.y < player.y + player.height &&
+            e.x < player.x + player.width &&
+            e.x + e.width > player.x
+        ) {
+            health--;
+            enemies.splice(i, 1);
+
+            explosions.push({ x: player.x, y: player.y, timer: 20 });
+            explosionSound.cloneNode(true).play();
+        }
+
+        // BULLET HITS ENEMY
+        bullets.forEach((b, bIndex) => {
+            if (
+                b.x < e.x + e.width &&
+                b.x + 5 > e.x &&
+                b.y < e.y + e.height &&
+                b.y + 10 > e.y
+            ) {
+                score++;
+                explosions.push({ x: e.x, y: e.y, timer: 20 });
+                explosionSound.cloneNode(true).play();
+
+                enemies.splice(i, 1);
+                bullets.splice(bIndex, 1);
+            }
+        });
+    });
 }
 
-// ⭐ GAME OVER SCREEN
+// DRAW EXPLOSIONS
+function drawExplosions() {
+    explosions.forEach((ex, i) => {
+        ctx.drawImage(explosionImg, ex.x, ex.y, 50, 50);
+        ex.timer--;
+        if (ex.timer <= 0) explosions.splice(i, 1);
+    });
+}
+
+// DRAW HUD (health + level)
+function drawHUD() {
+    for (let i = 0; i < health; i++) {
+        ctx.drawImage(heartImg, 10 + i * 40, 10, 30, 30);
+    }
+
+    ctx.fillStyle = "white";
+    ctx.font = "20px Arial";
+    ctx.fillText("Score: " + score, 380, 30);
+    ctx.fillText("Level: " + level, 380, 55);
+}
+
+// LEVEL SYSTEM
+function updateLevel() {
+    if (score % 10 === 0 && score !== 0) {
+        enemySpeed += 0.02;
+        level = Math.floor(enemySpeed);
+    }
+}
+
+// GAME OVER
 function showGameOver() {
     ctx.fillStyle = "white";
-    ctx.font = "45px Arial";
-    ctx.fillText("GAME OVER", 110, 250);
+    ctx.font = "50px Arial";
+    ctx.fillText("GAME OVER", 120, 250);
 
     ctx.font = "25px Arial";
-    ctx.fillText("Press R to Restart", 135, 320);
+    ctx.fillText("Press R to Restart", 150, 320);
 }
 
-// RESTART GAME
-function restartGame() {
-    player.x = 220;
-    bullets = [];
+// RESTART
+function restart() {
+    score = 0;
+    level = 1;
+    health = 3;
+    enemySpeed = 2;
+
     enemies = [];
-    gameOver = false;
+    bullets = [];
+    explosions = [];
 }
 
 // MAIN LOOP
 function gameLoop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, 500, 600);
 
-    if (!gameOver) {
+    if (health > 0) {
         drawPlayer();
         drawBullets();
         drawEnemies();
+        drawExplosions();
+        drawHUD();
+        updateLevel();
     } else {
         showGameOver();
     }
@@ -119,26 +198,22 @@ function gameLoop() {
 }
 gameLoop();
 
-// INPUTS
+// INPUT
 document.addEventListener("keydown", (e) => {
-    if (!gameOver) {
+    if (health > 0) {
         if (e.key === "ArrowLeft") player.x -= player.speed;
         if (e.key === "ArrowRight") player.x += player.speed;
 
-        // 🔥 SHOOT
+        // FIRE
         if (e.key === " ") {
-            fireSound.cloneNode(true).play(); // PLAY FIRE SOUND
-
-            bullets.push({
-                x: player.x + 18,
-                y: player.y
-            });
+            fireSound.cloneNode(true).play();
+            bullets.push({ x: player.x + 22, y: player.y });
         }
     }
 
-    // 🔁 RESTART GAME
+    // RESTART
     if (e.key === "r" || e.key === "R") {
-        restartGame();
+        restart();
     }
 });
 </script>
