@@ -1,199 +1,156 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Simple Shooter Game</title>
-<style>
-    body {
-        margin: 0;
-        background: black;
-        overflow: hidden;
-    }
-    canvas {
-        background: black;
-        display: block;
-        margin: auto;
-    }
-</style>
+    <title>Simple Space Shooter</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: black; }
+        canvas { display: block; margin: auto; background: #000; }
+    </style>
 </head>
 <body>
-<canvas id="game" width="400" height="600"></canvas>
+
+<canvas id="gameCanvas" width="480" height="600"></canvas>
 
 <script>
-const canvas = document.getElementById("game");
+// CANVAS SETUP
+const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-const W = canvas.width;
-const H = canvas.height;
-
-// Player
+// PLAYER
 let player = {
-    x: W / 2,
-    y: H - 60,
-    w: 40,
-    h: 40,
+    x: 220,
+    y: 520,
+    width: 40,
+    height: 40,
     speed: 5
 };
 
+// BULLETS
 let bullets = [];
+
+// ENEMIES
 let enemies = [];
-let running = true;
-let score = 0;
-let playBtn = null;
+let enemySpeed = 2;
 
-// Controls
-let leftPressed = false;
-let rightPressed = false;
-let spacePressed = false;
+// GAME STATE
+let gameOver = false;
 
-document.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowLeft") leftPressed = true;
-    if (e.key === "ArrowRight") rightPressed = true;
-    if (e.key === " ") spacePressed = true;
-});
+// 🔊 FIRE SOUND
+let fireSound = new Audio();
+fireSound.src = "https://actions.google.com/sounds/v1/weapons/medium_laser_1.ogg";
 
-document.addEventListener("keyup", (e) => {
-    if (e.key === "ArrowLeft") leftPressed = false;
-    if (e.key === "ArrowRight") rightPressed = false;
-    if (e.key === " ") spacePressed = false;
-});
-
-// Shoot
-function shoot() {
-    bullets.push({
-        x: player.x + player.w / 2 - 2,
-        y: player.y,
-        w: 4,
-        h: 10,
-        speed: 7
-    });
-}
-
-// Enemy spawn
-function spawnEnemy() {
+// CREATE ENEMY
+function createEnemy() {
     enemies.push({
-        x: Math.random() * (W - 40),
+        x: Math.random() * 440,
         y: -40,
-        w: 40,
-        h: 40,
-        speed: 2 + Math.random() * 2
+        width: 40,
+        height: 40
     });
 }
-setInterval(spawnEnemy, 1000);
+setInterval(createEnemy, 1000);
 
-// Collision check
-function coll(a, b) {
-    return (
-        a.x < b.x + b.w &&
-        a.x + a.w > b.x &&
-        a.y < b.y + b.h &&
-        a.y + a.h > b.y
-    );
+// DRAW PLAYER
+function drawPlayer() {
+    ctx.fillStyle = "cyan";
+    ctx.fillRect(player.x, player.y, player.width, player.height);
 }
 
-// Reset game
-function reset() {
-    player.x = W / 2;
+// DRAW BULLETS
+function drawBullets() {
+    ctx.fillStyle = "yellow";
+    bullets.forEach((b, i) => {
+        b.y -= 5;
+        ctx.fillRect(b.x, b.y, 5, 10);
+
+        if (b.y < 0) bullets.splice(i, 1);
+    });
+}
+
+// DRAW ENEMIES
+function drawEnemies() {
+    ctx.fillStyle = "red";
+    enemies.forEach((e, i) => {
+        e.y += enemySpeed;
+        ctx.fillRect(e.x, e.y, e.width, e.height);
+
+        // COLLISION WITH PLAYER → GAME OVER
+        if (e.y + e.height > player.y &&
+            e.x < player.x + player.width &&
+            e.x + e.width > player.x) {
+            gameOver = true;
+        }
+
+        // BULLET HITS ENEMY
+        bullets.forEach((b, bIndex) => {
+            if (b.x < e.x + e.width &&
+                b.x + 5 > e.x &&
+                b.y < e.y + e.height &&
+                b.y + 10 > e.y) {
+                enemies.splice(i, 1);
+                bullets.splice(bIndex, 1);
+            }
+        });
+    });
+}
+
+// ⭐ GAME OVER SCREEN
+function showGameOver() {
+    ctx.fillStyle = "white";
+    ctx.font = "45px Arial";
+    ctx.fillText("GAME OVER", 110, 250);
+
+    ctx.font = "25px Arial";
+    ctx.fillText("Press R to Restart", 135, 320);
+}
+
+// RESTART GAME
+function restartGame() {
+    player.x = 220;
     bullets = [];
     enemies = [];
-    score = 0;
-    running = true;
-    playBtn = null;
+    gameOver = false;
 }
 
-// Draw game over
-function gameOver() {
-    running = false;
+// MAIN LOOP
+function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = "rgba(0,0,0,0.7)";
-    ctx.fillRect(0, 0, W, H);
+    if (!gameOver) {
+        drawPlayer();
+        drawBullets();
+        drawEnemies();
+    } else {
+        showGameOver();
+    }
 
-    ctx.fillStyle = "#fff";
-    ctx.font = "40px monospace";
-    ctx.textAlign = "center";
-    ctx.fillText("GAME OVER", W / 2, H / 2 - 20);
-
-    ctx.font = "20px monospace";
-    ctx.fillText("Score: " + score, W / 2, H / 2 + 10);
-
-    // Play Again button
-    ctx.fillStyle = "#222";
-    ctx.fillRect(W/2 - 80, H/2 + 40, 160, 40);
-
-    ctx.fillStyle = "#fff";
-    ctx.font = "18px monospace";
-    ctx.fillText("PLAY AGAIN", W/2, H/2 + 67);
-
-    playBtn = { x: W/2 - 80, y: H/2 + 40, w: 160, h: 40 };
+    requestAnimationFrame(gameLoop);
 }
+gameLoop();
 
-// Button click event
-canvas.addEventListener("click", function(e) {
-    if (!running && playBtn) {
-        const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
+// INPUTS
+document.addEventListener("keydown", (e) => {
+    if (!gameOver) {
+        if (e.key === "ArrowLeft") player.x -= player.speed;
+        if (e.key === "ArrowRight") player.x += player.speed;
 
-        if (mx > playBtn.x && mx < playBtn.x + playBtn.w &&
-            my > playBtn.y && my < playBtn.y + playBtn.h) {
-            reset();
+        // 🔥 SHOOT
+        if (e.key === " ") {
+            fireSound.cloneNode(true).play(); // PLAY FIRE SOUND
+
+            bullets.push({
+                x: player.x + 18,
+                y: player.y
+            });
         }
     }
-});
 
-// Game loop
-function loop() {
-    ctx.clearRect(0, 0, W, H);
-
-    if (running) {
-        // Player movement
-        if (leftPressed && player.x > 0) player.x -= player.speed;
-        if (rightPressed && player.x < W - player.w) player.x += player.speed;
-
-        if (spacePressed && bullets.length < 5) shoot();
-
-        // Draw player
-        ctx.fillStyle = "cyan";
-        ctx.fillRect(player.x, player.y, player.w, player.h);
-
-        // Bullets
-        ctx.fillStyle = "yellow";
-        bullets.forEach((b, i) => {
-            b.y -= b.speed;
-            ctx.fillRect(b.x, b.y, b.w, b.h);
-            if (b.y < -20) bullets.splice(i, 1);
-        });
-
-        // Enemies
-        ctx.fillStyle = "red";
-        enemies.forEach((en, i) => {
-            en.y += en.speed;
-            ctx.fillRect(en.x, en.y, en.w, en.h);
-
-            // Check collision with player
-            if (coll(en, player)) gameOver();
-
-            // Check bullet hit
-            bullets.forEach((b, j) => {
-                if (coll(b, en)) {
-                    bullets.splice(j, 1);
-                    enemies.splice(i, 1);
-                    score += 10;
-                }
-            });
-
-            // Remove off-screen enemy
-            if (en.y > H + 50) enemies.splice(i, 1);
-        });
-
-        // Score
-        ctx.fillStyle = "#fff";
-        ctx.font = "20px monospace";
-        ctx.fillText("Score: " + score, 60, 30);
+    // 🔁 RESTART GAME
+    if (e.key === "r" || e.key === "R") {
+        restartGame();
     }
-
-    requestAnimationFrame(loop);
-}
-loop();
+});
 </script>
+
 </body>
 </html>
