@@ -69,29 +69,15 @@ function drawBullets() {
 
 // DRAW ENEMIES
 function drawEnemies() {
-    ctx.fillStyle = "red";
-    enemies.forEach((e, i) => {
-        e.y += enemySpeed;
-        ctx.fillRect(e.x, e.y, e.width, e.height);
-
-        // COLLISION WITH PLAYER → GAME OVER
-        if (e.y + e.height > player.y &&
-            e.x < player.x + player.width &&
-            e.x + e.width > player.x) {
-            gameOver = true;
-        }
-
-        // BULLET HITS ENEMY
-        bullets.forEach((b, bIndex) => {
-            if (b.x < e.x + e.width &&
-                b.x + 5 > e.x &&
-                b.y < e.y + e.height &&
-                b.y + 10 > e.y) {
-                enemies.splice(i, 1);
-                bullets.splice(bIndex, 1);
-            }
-        });
-    });
+    // COLLISION WITH PLAYER → TRUE COLLISION CHECK
+if (
+    e.y + e.height > player.y &&           // Enemy bottom touches player top
+    e.y < player.y + player.height &&      // Enemy top is below player bottom
+    e.x < player.x + player.width &&       // Enemy left touches player right
+    e.x + e.width > player.x               // Enemy right touches player left
+) {
+    gameOver = true;
+}
 }
 
 // ⭐ GAME OVER SCREEN
